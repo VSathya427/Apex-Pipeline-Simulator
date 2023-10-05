@@ -44,6 +44,7 @@ get_num_from_string(const char *buffer)
 static int
 set_opcode_str(const char *opcode_str)
 {
+    printf("head: %s\n",opcode_str);
     if (strcmp(opcode_str, "ADD") == 0)
     {
         return OPCODE_ADD;
@@ -108,6 +109,11 @@ set_opcode_str(const char *opcode_str)
     {
         return OPCODE_HALT;
     }
+    
+    if (strcmp(opcode_str, "NOP") == 0)
+    {
+        return OPCODE_NOP;
+    }
 
     assert(0 && "Invalid opcode");
     return 0;
@@ -144,7 +150,6 @@ create_APEX_instruction(APEX_Instruction *ins, char *buffer)
     {
         strcpy(top_level_tokens[i], "");
     }
-
     split_opcode_from_insn_string(buffer, top_level_tokens);
 
     char *token = strtok(top_level_tokens[1], ",");
@@ -155,12 +160,12 @@ create_APEX_instruction(APEX_Instruction *ins, char *buffer)
         token_num++;
         token = strtok(NULL, ",");
     }
-
     strcpy(ins->opcode_str, top_level_tokens[0]);
     ins->opcode = set_opcode_str(ins->opcode_str);
 
     switch (ins->opcode)
     {
+        case OPCODE_NOP:
         case OPCODE_ADD:
         case OPCODE_SUB:
         case OPCODE_MUL:

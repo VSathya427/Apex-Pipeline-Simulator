@@ -28,6 +28,11 @@ print_instruction(const CPU_Stage *stage)
 {
     switch (stage->opcode)
     {
+        case OPCODE_NOP:
+        {
+            printf("NOP");
+            break;
+        }
         case OPCODE_ADD:
         case OPCODE_SUB:
         case OPCODE_MUL:
@@ -198,6 +203,10 @@ APEX_decode(APEX_CPU *cpu)
                 /* MOVC doesn't have register operands */
                 break;
             }
+            case OPCODE_NOP:
+            {
+                break;
+            }
         }
 
         /* Copy data from decode latch to execute latch*/
@@ -303,6 +312,11 @@ APEX_execute(APEX_CPU *cpu)
                 }
                 break;
             }
+
+            case OPCODE_NOP:
+            {
+                break;
+            }
         }
 
         /* Copy data from execute latch to memory latch*/
@@ -339,6 +353,11 @@ APEX_memory(APEX_CPU *cpu)
                 /* Read from data memory */
                 cpu->memory.result_buffer
                     = cpu->data_memory[cpu->memory.memory_address];
+                break;
+            }
+
+            case OPCODE_NOP:
+            {
                 break;
             }
         }
@@ -384,6 +403,10 @@ APEX_writeback(APEX_CPU *cpu)
                 cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
                 break;
             }
+            case OPCODE_NOP:
+            {
+                break;
+            }
         }
 
         cpu->insn_completed++;
@@ -399,6 +422,8 @@ APEX_writeback(APEX_CPU *cpu)
             /* Stop the APEX simulator */
             return TRUE;
         }
+
+        
     }
 
     /* Default */
