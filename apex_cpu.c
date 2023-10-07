@@ -13,6 +13,7 @@
 #include "apex_cpu.h"
 #include "apex_macros.h"
 
+
 /* Converts the PC(4000 series) into array index for code memory
  *
  * Note: You are not supposed to edit this function
@@ -30,7 +31,7 @@ print_instruction(const CPU_Stage *stage)
     {
         case OPCODE_NOP:
         {
-            printf("NOP");
+            printf("%s", stage->opcode_str);
             break;
         }
         case OPCODE_ADD:
@@ -119,6 +120,32 @@ print_reg_file(const APEX_CPU *cpu)
     printf("\n");
 }
 
+/* Debug function which prints the scoreboard file
+ *
+ * Note: You are not supposed to edit this function
+ */
+static void
+print_score_file(const APEX_CPU *cpu)
+{
+    int i;
+
+    printf("----------\n%s\n----------\n", "Scoreboard:");
+
+    for (int i = 0; i < REG_FILE_SIZE / 2; ++i)
+    {
+        printf("R%-3d[%-3d] ", i, cpu->status[i]);
+    }
+
+    printf("\n");
+
+    for (i = (REG_FILE_SIZE / 2); i < REG_FILE_SIZE; ++i)
+    {
+        printf("R%-3d[%-3d] ", i, cpu->status[i]);
+    }
+
+    printf("\n");
+}
+
 /*
  * Fetch Stage of APEX Pipeline
  *
@@ -137,6 +164,22 @@ APEX_fetch(APEX_CPU *cpu)
             cpu->fetch_from_next_cycle = FALSE;
 
             /* Skip this cycle*/
+            return;
+        }
+        if(cpu->stall == 1){
+            cpu->fetch_from_next_cycle = FALSE;
+            cpu->fetch.pc = cpu->pc;
+            current_ins = &cpu->code_memory[get_code_memory_index_from_pc(cpu->pc)];
+            strcpy(cpu->fetch.opcode_str, current_ins->opcode_str);
+            cpu->fetch.opcode = current_ins->opcode;
+            cpu->fetch.rd = current_ins->rd;
+            cpu->fetch.rs1 = current_ins->rs1;
+            cpu->fetch.rs2 = current_ins->rs2;
+            cpu->fetch.imm = current_ins->imm;
+            if (ENABLE_DEBUG_MESSAGES)
+            {
+                print_stage_content("Fetch", &cpu->fetch);
+            }
             return;
         }
 
@@ -182,37 +225,73 @@ APEX_decode(APEX_CPU *cpu)
 {
     if (cpu->decode.has_insn)
     {
-        /* Read operands from register file based on the instruction type */
-        switch (cpu->decode.opcode)
-        {
-            case OPCODE_ADD:
+            /* Read operands from register file based on the instruction type */
+            switch (cpu->decode.opcode)
             {
-                cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
-                cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
-                break;
-            }
+                case OPCODE_ADD:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2] )== BUSY){
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+                    cpu->status[cpu->decode.rd] = BUSY;
+                    break;
+                }
 
-            case OPCODE_LOAD:
-            {
-                cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
-                break;
-            }
+                case OPCODE_LOAD:
+                {
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    break;
+                }
+                
+                case OPCODE_STORE:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)
+                    {
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+                    break;
+                }
 
-            case OPCODE_MOVC:
-            {
-                /* MOVC doesn't have register operands */
-                break;
+                case OPCODE_MOVC:
+                {
+                    cpu->status[cpu->decode.rd] = BUSY;
+                    /* MOVC doesn't have register operands */
+                    break;
+                }
+                case OPCODE_NOP:
+                {
+                    break;
+                }
             }
-            case OPCODE_NOP:
-            {
-                break;
-            }
-        }
 
         /* Copy data from decode latch to execute latch*/
-        cpu->execute = cpu->decode;
-        cpu->decode.has_insn = FALSE;
-
+        if(!cpu->stall){
+            cpu->execute = cpu->decode;
+            cpu->decode.has_insn = FALSE;
+        }
+        cpu->stall = 0;
         if (ENABLE_DEBUG_MESSAGES)
         {
             print_stage_content("Decode/RF", &cpu->decode);
@@ -235,8 +314,7 @@ APEX_execute(APEX_CPU *cpu)
         {
             case OPCODE_ADD:
             {
-                cpu->execute.result_buffer
-                    = cpu->execute.rs1_value + cpu->execute.rs2_value;
+                cpu->execute.result_buffer = cpu->execute.rs1_value + cpu->execute.rs2_value;
 
                 /* Set the zero flag based on the result buffer */
                 if (cpu->execute.result_buffer == 0)
@@ -255,6 +333,11 @@ APEX_execute(APEX_CPU *cpu)
                 cpu->execute.memory_address
                     = cpu->execute.rs1_value + cpu->execute.imm;
                 break;
+            }
+
+            case OPCODE_STORE:
+            {
+                cpu->execute.memory_address = cpu->execute.rs2_value + cpu->execute.imm;
             }
 
             case OPCODE_BZ:
@@ -320,8 +403,10 @@ APEX_execute(APEX_CPU *cpu)
         }
 
         /* Copy data from execute latch to memory latch*/
-        cpu->memory = cpu->execute;
-        cpu->execute.has_insn = FALSE;
+        if(!(cpu->stall)){
+                cpu->memory = cpu->execute;
+                cpu->execute.has_insn = FALSE;
+        }
 
         if (ENABLE_DEBUG_MESSAGES)
         {
@@ -353,6 +438,12 @@ APEX_memory(APEX_CPU *cpu)
                 /* Read from data memory */
                 cpu->memory.result_buffer
                     = cpu->data_memory[cpu->memory.memory_address];
+                break;
+            }
+
+            case OPCODE_STORE:
+            {
+                cpu->data_memory[cpu->memory.memory_address] = cpu->memory.rs1_value;
                 break;
             }
 
@@ -409,6 +500,8 @@ APEX_writeback(APEX_CPU *cpu)
             }
         }
 
+        cpu->status[cpu->writeback.rd] = FREE;
+
         cpu->insn_completed++;
         cpu->writeback.has_insn = FALSE;
 
@@ -458,6 +551,12 @@ APEX_cpu_init(const char *filename)
     memset(cpu->regs, 0, sizeof(int) * REG_FILE_SIZE);
     memset(cpu->data_memory, 0, sizeof(int) * DATA_MEMORY_SIZE);
     cpu->single_step = ENABLE_SINGLE_STEP;
+
+
+    for (i = 0; i < REG_FILE_SIZE; i++)
+    {
+        cpu->status[i] = FREE;
+    }
 
     /* Parse input file and create code memory */
     cpu->code_memory = create_code_memory(filename, &cpu->code_memory_size);
@@ -522,6 +621,8 @@ APEX_cpu_run(APEX_CPU *cpu)
         APEX_fetch(cpu);
 
         print_reg_file(cpu);
+
+        print_score_file(cpu);
 
         if (cpu->single_step)
         {

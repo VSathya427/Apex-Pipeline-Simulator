@@ -22,6 +22,12 @@ typedef struct APEX_Instruction
     int imm;
 } APEX_Instruction;
 
+enum RegStatus
+{   FREE,
+    BUSY
+};
+
+
 /* Model of CPU stage latch */
 typedef struct CPU_Stage
 {
@@ -52,6 +58,8 @@ typedef struct APEX_CPU
     int single_step;               /* Wait for user input after every cycle */
     int zero_flag;                 /* {TRUE, FALSE} Used by BZ and BNZ to branch */
     int fetch_from_next_cycle;
+    int stall;
+    enum RegStatus status[REG_FILE_SIZE];
 
     /* Pipeline stages */
     CPU_Stage fetch;
@@ -60,6 +68,7 @@ typedef struct APEX_CPU
     CPU_Stage memory;
     CPU_Stage writeback;
 } APEX_CPU;
+
 
 APEX_Instruction *create_code_memory(const char *filename, int *size);
 APEX_CPU *APEX_cpu_init(const char *filename);
