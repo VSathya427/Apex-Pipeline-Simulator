@@ -37,8 +37,14 @@
 #define OPCODE_SUBL 0xf
 #define OPCODE_STOREP 0x10
 #define OPCODE_LOADP 0x11
-
-
+#define OPCODE_CMP 0x12
+#define OPCODE_CML 0x13
+#define OPCODE_BP 0x14
+#define OPCODE_BNP 0x15
+#define OPCODE_BN 0x16
+#define OPCODE_BNN 0x17
+#define OPCODE_JUMP 0x18
+#define OPCODE_JALR 0x19
 
 /* Set this flag to 1 to enable debug messages */
 #define ENABLE_DEBUG_MESSAGES 1

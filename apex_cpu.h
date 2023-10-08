@@ -60,6 +60,8 @@ typedef struct APEX_CPU
     int fetch_from_next_cycle;
     int stall;
     enum RegStatus status[REG_FILE_SIZE];
+    int positive_flag;
+    int negative_flag;
 
     /* Pipeline stages */
     CPU_Stage fetch;
