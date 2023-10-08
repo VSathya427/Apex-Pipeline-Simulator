@@ -50,9 +50,19 @@ set_opcode_str(const char *opcode_str)
         return OPCODE_ADD;
     }
 
+    if (strcmp(opcode_str, "ADDL") == 0)
+    {
+        return OPCODE_ADDL;
+    }
+
     if (strcmp(opcode_str, "SUB") == 0)
     {
         return OPCODE_SUB;
+    }
+
+    if (strcmp(opcode_str, "SUBL") == 0)
+    {
+        return OPCODE_SUBL;
     }
 
     if (strcmp(opcode_str, "MUL") == 0)
@@ -93,6 +103,16 @@ set_opcode_str(const char *opcode_str)
     if (strcmp(opcode_str, "STORE") == 0)
     {
         return OPCODE_STORE;
+    }
+
+    if (strcmp(opcode_str, "LOADP") == 0)
+    {
+        return OPCODE_LOADP;
+    }
+
+    if (strcmp(opcode_str, "STOREP") == 0)
+    {
+        return OPCODE_STOREP;
     }
 
     if (strcmp(opcode_str, "BZ") == 0)
@@ -180,13 +200,23 @@ create_APEX_instruction(APEX_Instruction *ins, char *buffer)
             break;
         }
 
+        case OPCODE_ADDL:
+        case OPCODE_SUBL:
+        {
+
+            ins->rd = get_num_from_string(tokens[0]);
+            ins->rs1 = get_num_from_string(tokens[1]);
+            ins->imm = get_num_from_string(tokens[2]);
+            break;
+        }
+
         case OPCODE_MOVC:
         {
             ins->rd = get_num_from_string(tokens[0]);
             ins->imm = get_num_from_string(tokens[1]);
             break;
         }
-
+        case OPCODE_LOADP:
         case OPCODE_LOAD:
         {
             ins->rd = get_num_from_string(tokens[0]);
@@ -194,7 +224,7 @@ create_APEX_instruction(APEX_Instruction *ins, char *buffer)
             ins->imm = get_num_from_string(tokens[2]);
             break;
         }
-
+        case OPCODE_STOREP:
         case OPCODE_STORE:
         {
             ins->rs1 = get_num_from_string(tokens[0]);

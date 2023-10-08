@@ -46,13 +46,20 @@ print_instruction(const CPU_Stage *stage)
                    stage->rs2);
             break;
         }
-
+        case OPCODE_ADDL:
+        case OPCODE_SUBL:
+        {
+            printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rd, stage->rs1,
+                   stage->imm);
+            break;
+        }
         case OPCODE_MOVC:
         {
             printf("%s,R%d,#%d ", stage->opcode_str, stage->rd, stage->imm);
             break;
         }
 
+        case OPCODE_LOADP:
         case OPCODE_LOAD:
         {
             printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rd, stage->rs1,
@@ -60,6 +67,7 @@ print_instruction(const CPU_Stage *stage)
             break;
         }
 
+        case OPCODE_STOREP:
         case OPCODE_STORE:
         {
             printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rs1, stage->rs2,
@@ -248,13 +256,125 @@ APEX_decode(APEX_CPU *cpu)
                     break;
                 }
 
+                case OPCODE_ADDL:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY)
+                    {
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->status[cpu->decode.rd] = BUSY;
+                    break;
+                }
+
+                case OPCODE_SUB:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)
+                    {
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+                    cpu->status[cpu->decode.rd] = BUSY;
+                    break;
+                }
+
+                case OPCODE_SUBL:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY)
+                    {
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->status[cpu->decode.rd] = BUSY;
+                    break;
+                }
+
                 case OPCODE_LOAD:
                 {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY){
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
                     cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
                     break;
                 }
-                
+
+                case OPCODE_LOADP:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY)
+                    {
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    break;
+                }
+
                 case OPCODE_STORE:
+                {
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)
+                    {
+                        cpu->stall = 1;
+                        if (ENABLE_DEBUG_MESSAGES)
+                        {
+                            print_stage_content("Decode/RF", &cpu->decode);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        cpu->stall = 0;
+                    }
+                    cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+                    break;
+                }
+
+                case OPCODE_STOREP:
                 {
                     if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)
                     {
@@ -328,6 +448,49 @@ APEX_execute(APEX_CPU *cpu)
                 break;
             }
 
+            case OPCODE_ADDL:
+            {
+                cpu->execute.result_buffer = cpu->execute.rs1_value + cpu->execute.imm;
+                if (cpu->execute.result_buffer == 0)
+                {
+                    cpu->zero_flag = TRUE;
+                }
+                else
+                {
+                    cpu->zero_flag = FALSE;
+                }
+                break;
+            }
+            case OPCODE_SUB:
+            {
+                cpu->execute.result_buffer = cpu->execute.rs1_value - cpu->execute.rs2_value;
+
+                /* Set the zero flag based on the result buffer */
+                if (cpu->execute.result_buffer == 0)
+                {
+                    cpu->zero_flag = TRUE;
+                }
+                else
+                {
+                    cpu->zero_flag = FALSE;
+                }
+                break;
+            }
+
+            case OPCODE_SUBL:
+            {
+                cpu->execute.result_buffer = cpu->execute.rs1_value - cpu->execute.imm;
+                if (cpu->execute.result_buffer == 0)
+                {
+                    cpu->zero_flag = TRUE;
+                }
+                else
+                {
+                    cpu->zero_flag = FALSE;
+                }
+                break;
+            }
+
             case OPCODE_LOAD:
             {
                 cpu->execute.memory_address
@@ -335,9 +498,22 @@ APEX_execute(APEX_CPU *cpu)
                 break;
             }
 
+            case OPCODE_LOADP:
+            {
+                cpu->execute.memory_address = cpu->execute.rs1_value + cpu->execute.imm;
+                cpu->execute.rs1_value = cpu->execute.rs1_value + 4;
+                break;
+            }
+
             case OPCODE_STORE:
+            { 
+                cpu->execute.memory_address = cpu->execute.rs2_value + cpu->execute.imm;
+            }
+
+            case OPCODE_STOREP:
             {
                 cpu->execute.memory_address = cpu->execute.rs2_value + cpu->execute.imm;
+                cpu->execute.rs2_value = cpu->execute.rs2_value + 4;
             }
 
             case OPCODE_BZ:
@@ -483,9 +659,41 @@ APEX_writeback(APEX_CPU *cpu)
                 break;
             }
 
+            case OPCODE_ADDL:
+            {
+                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+                break;
+            }
+
+            case OPCODE_SUB:
+            {
+                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+                break;
+            }
+
+            case OPCODE_SUBL:
+            {
+                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+                break;
+            }
+
             case OPCODE_LOAD:
             {
                 cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+                break;
+            }
+
+            case OPCODE_LOADP:
+            {
+                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+                cpu->regs[cpu->writeback.rs1] = cpu->writeback.rs1_value;
+                break;
+            }
+
+            case OPCODE_STOREP:
+            {
+                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+                cpu->regs[cpu->writeback.rs2] = cpu->writeback.rs2_value;
                 break;
             }
 
@@ -621,8 +829,6 @@ APEX_cpu_run(APEX_CPU *cpu)
         APEX_fetch(cpu);
 
         print_reg_file(cpu);
-
-        print_score_file(cpu);
 
         if (cpu->single_step)
         {

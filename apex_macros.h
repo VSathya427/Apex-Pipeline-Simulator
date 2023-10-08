@@ -16,7 +16,7 @@
 #define DATA_MEMORY_SIZE 4096
 
 /* Size of integer register file */
-#define REG_FILE_SIZE 16
+#define REG_FILE_SIZE 32
 
 /* Numeric OPCODE identifiers for instructions */
 #define OPCODE_ADD 0x0
@@ -33,6 +33,11 @@
 #define OPCODE_BNZ 0xb
 #define OPCODE_HALT 0xc
 #define OPCODE_NOP 0xd
+#define OPCODE_ADDL 0xe
+#define OPCODE_SUBL 0xf
+#define OPCODE_STOREP 0x10
+#define OPCODE_LOADP 0x11
+
 
 
 /* Set this flag to 1 to enable debug messages */
