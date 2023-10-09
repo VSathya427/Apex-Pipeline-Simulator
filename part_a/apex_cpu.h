@@ -62,6 +62,8 @@ typedef struct APEX_CPU
     enum RegStatus status[REG_FILE_SIZE];
     int positive_flag;
     int negative_flag;
+    int prev_dest_reg;
+    int pause;
 
     /* Pipeline stages */
     CPU_Stage fetch;

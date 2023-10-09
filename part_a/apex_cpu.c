@@ -14,6 +14,7 @@
 #include "apex_macros.h"
 
 
+extern int cyclecount;
 /* Converts the PC(4000 series) into array index for code memory
  *
  * Note: You are not supposed to edit this function
@@ -42,7 +43,6 @@ print_instruction(const CPU_Stage *stage)
         case OPCODE_OR:
         case OPCODE_XOR:
         {
-            printf("hrehr");
             printf("%s,R%d,R%d,R%d ", stage->opcode_str, stage->rd, stage->rs1,
                    stage->rs2);
             break;
@@ -148,6 +148,16 @@ print_reg_file(const APEX_CPU *cpu)
     printf("N = %d\n", cpu->negative_flag);
     printf("Z = %d\n", cpu->zero_flag);
     printf("\n");
+    printf("\n");
+    for (int i = 0; i < 100; ++i)
+    {
+        if (cpu->data_memory[i] != 0)
+        {
+            printf("MEM[%-3d%s ", i, "]");
+            printf("      DATA VALUE = %-4d", cpu->data_memory[i]);
+            printf("\n");
+        }
+    }
 
     // for (int i = 2000; i < 2010; ++i)
     // {
@@ -158,31 +168,6 @@ print_reg_file(const APEX_CPU *cpu)
 
 }
 
-/* Debug function which prints the scoreboard file
- *
- * Note: You are not supposed to edit this function
- */
-static void
-print_score_file(const APEX_CPU *cpu)
-{
-    int i;
-
-    printf("----------\n%s\n----------\n", "Scoreboard:");
-
-    for (int i = 0; i < REG_FILE_SIZE / 2; ++i)
-    {
-        printf("R%-3d[%-3d] ", i, cpu->status[i]);
-    }
-
-    printf("\n");
-
-    for (i = (REG_FILE_SIZE / 2); i < REG_FILE_SIZE; ++i)
-    {
-        printf("R%-3d[%-3d] ", i, cpu->status[i]);
-    }
-
-    printf("\n");
-}
 
 /*
  * Fetch Stage of APEX Pipeline
@@ -263,18 +248,26 @@ APEX_decode(APEX_CPU *cpu)
 {
     if (cpu->decode.has_insn)
     {
-            /* Read operands from register file based on the instruction type */
-            switch (cpu->decode.opcode)
-            {
+        if(cpu->prev_dest_reg == cpu->decode.rd){
+            cpu->pause = 1;
+            cpu->prev_dest_reg = -1;
+        }
+        /* Read operands from register file based on the instruction type */
+        switch (cpu->decode.opcode)
+        {
                 case OPCODE_ADD:
                 {
-                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2] )== BUSY){
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY || (cpu->pause == 1 && (cpu->status[cpu->decode.rs2]) == FREE) || (cpu->pause == 1 && (cpu->status[cpu->decode.rs1]) == FREE))
+                    {
+                        if (!((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)){
+                            cpu->pause = -1;
+                        }
                         cpu->stall = 1;
                         if (ENABLE_DEBUG_MESSAGES)
                         {
                             print_stage_content("Decode/RF", &cpu->decode);
                         }
-                        return;
+                         return; 
                     }
                     else
                     {
@@ -288,9 +281,13 @@ APEX_decode(APEX_CPU *cpu)
 
                 case OPCODE_ADDL:
                 {
-                    if ((cpu->status[cpu->decode.rs1]) == BUSY)
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->pause == 1 && (cpu->status[cpu->decode.rs1]) == FREE))
                     {
-                        cpu->stall = 1;
+                        
+                        if (!((cpu->status[cpu->decode.rs1]) == BUSY)){
+                            cpu->pause = -1;
+                        }
+                            cpu->stall = 1;
                         if (ENABLE_DEBUG_MESSAGES)
                         {
                             print_stage_content("Decode/RF", &cpu->decode);
@@ -308,8 +305,12 @@ APEX_decode(APEX_CPU *cpu)
 
                 case OPCODE_SUB:
                 {
-                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY || (cpu->pause == 1 && (cpu->status[cpu->decode.rs2]) == FREE) || (cpu->pause == 1 && (cpu->status[cpu->decode.rs1]) == FREE))
                     {
+                        if (!((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY))
+                        {
+                            cpu->pause = -1;
+                        }
                         cpu->stall = 1;
                         if (ENABLE_DEBUG_MESSAGES)
                         {
@@ -323,6 +324,7 @@ APEX_decode(APEX_CPU *cpu)
                     }
                     cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
                     cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+                    cpu->prev_dest_reg = cpu->regs[cpu->decode.rd];
                     cpu->status[cpu->decode.rd] = BUSY;
                     break;
                 }
@@ -331,6 +333,10 @@ APEX_decode(APEX_CPU *cpu)
                 {
                     if ((cpu->status[cpu->decode.rs1]) == BUSY)
                     {
+                        if (!((cpu->status[cpu->decode.rs1]) == BUSY))
+                        {
+                            cpu->pause = -1;
+                        }
                         cpu->stall = 1;
                         if (ENABLE_DEBUG_MESSAGES)
                         {
@@ -343,6 +349,7 @@ APEX_decode(APEX_CPU *cpu)
                         cpu->stall = 0;
                     }
                     cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                    cpu->prev_dest_reg = cpu->regs[cpu->decode.rd];
                     cpu->status[cpu->decode.rd] = BUSY;
                     break;
                 }
@@ -473,8 +480,12 @@ APEX_decode(APEX_CPU *cpu)
 
                 case OPCODE_STORE:
                 {
-                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY)
+                    if ((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY || (cpu->pause == 1 && (cpu->status[cpu->decode.rs2]) == FREE) || (cpu->pause == 1 && (cpu->status[cpu->decode.rs1]) == FREE))
                     {
+                        if (!((cpu->status[cpu->decode.rs1]) == BUSY || (cpu->status[cpu->decode.rs2]) == BUSY))
+                        {
+                            cpu->pause = -1;
+                        }
                         cpu->stall = 1;
                         if (ENABLE_DEBUG_MESSAGES)
                         {
@@ -601,7 +612,7 @@ APEX_decode(APEX_CPU *cpu)
                     break;
                 }
             }
-
+        cpu->prev_dest_reg = cpu->decode.rd;
         /* Copy data from decode latch to execute latch*/
         if(!cpu->stall){
             cpu->execute = cpu->decode;
@@ -784,12 +795,14 @@ APEX_execute(APEX_CPU *cpu)
             case OPCODE_STORE:
             { 
                 cpu->execute.memory_address = cpu->execute.rs2_value + cpu->execute.imm;
+                break;
             }
 
             case OPCODE_STOREP:
             {
                 cpu->execute.memory_address = cpu->execute.rs2_value + cpu->execute.imm;
                 cpu->execute.rs2_value = cpu->execute.rs2_value + 4;
+                break;
             }
 
             case OPCODE_JUMP:
@@ -807,6 +820,7 @@ APEX_execute(APEX_CPU *cpu)
                 cpu->fetch_from_next_cycle = TRUE;
                 cpu->decode.has_insn = FALSE;
                 cpu->fetch.has_insn = TRUE;
+                break;
             }
 
             case OPCODE_BZ:
@@ -1118,6 +1132,7 @@ APEX_writeback(APEX_CPU *cpu)
             {
                 cpu->regs[cpu->writeback.rd] = cpu->writeback.pc +4;
                 cpu->status[cpu->writeback.rd] = FREE;
+                break;
             }
             case OPCODE_NOP:
             {
@@ -1126,6 +1141,7 @@ APEX_writeback(APEX_CPU *cpu)
         }
 
         cpu->insn_completed++;
+
         cpu->writeback.has_insn = FALSE;
 
         if (ENABLE_DEBUG_MESSAGES)
@@ -1175,6 +1191,8 @@ APEX_cpu_init(const char *filename)
     memset(cpu->data_memory, 0, sizeof(int) * DATA_MEMORY_SIZE);
     cpu->single_step = ENABLE_SINGLE_STEP;
 
+    cpu->prev_dest_reg = -1;
+    cpu->pause = -1;
 
     for (i = 0; i < REG_FILE_SIZE; i++)
     {
@@ -1243,7 +1261,7 @@ APEX_cpu_run(APEX_CPU *cpu)
         APEX_decode(cpu);
         APEX_fetch(cpu);
 
-        print_reg_file(cpu);
+        //print_reg_file(cpu);
 
         if (cpu->single_step)
         {
@@ -1258,6 +1276,11 @@ APEX_cpu_run(APEX_CPU *cpu)
         }
 
         cpu->clock++;
+        if (cyclecount == cpu->clock)
+        {
+            print_reg_file(cpu);
+            break;
+        }
     }
 }
 
